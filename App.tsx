@@ -1507,6 +1507,12 @@ const AppContent = () => {
                             return { groups: sortedGroups, summary: { pending: totalPending, paid: totalPaid, total: totalPending + totalPaid } }; 
                         })()} billingDate={billingDate} prevBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()-1, 1))} nextBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()+1, 1))} togglePaymentStatus={(trip:any) => {
                             const isPaying = trip.paymentStatus !== 'Pago';
+                            
+                            // Restrição: Só quem recebeu (ou admin) pode desmarcar
+                            if (!isPaying && trip.receivedBy && trip.receivedBy !== user.username && user.role !== 'admin') {
+                                return notify(`Apenas ${trip.receivedBy} ou Admin pode desfazer este pagamento.`, 'error');
+                            }
+
                             const payload:any = { 
                                 id: trip.id, 
                                 paymentStatus: isPaying ? 'Pago' : 'Pendente' 
