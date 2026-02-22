@@ -1505,7 +1505,21 @@ const AppContent = () => {
                             sortedGroups.forEach((g:any) => g.trips.sort((a:any, b:any) => (b.time || '').localeCompare(a.time || ''))); 
                             
                             return { groups: sortedGroups, summary: { pending: totalPending, paid: totalPaid, total: totalPending + totalPaid } }; 
-                        })()} billingDate={billingDate} prevBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()-1, 1))} nextBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()+1, 1))} togglePaymentStatus={(trip:any) => dbOp('update', 'trips', { id: trip.id, paymentStatus: trip.paymentStatus === 'Pago' ? 'Pendente' : 'Pago' })} sendBillingMessage={sendBillingMessage} del={del} setFormData={setFormData} setModal={setModal} openEditTrip={openEditTrip} user={user} notify={notify} />}
+                        })()} billingDate={billingDate} prevBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()-1, 1))} nextBillingMonth={()=>setBillingDate(new Date(billingDate.getFullYear(), billingDate.getMonth()+1, 1))} togglePaymentStatus={(trip:any) => {
+                            const isPaying = trip.paymentStatus !== 'Pago';
+                            const payload:any = { 
+                                id: trip.id, 
+                                paymentStatus: isPaying ? 'Pago' : 'Pendente' 
+                            };
+                            if (isPaying) {
+                                payload.receivedBy = user.username;
+                                payload.receivedAt = getTodayDate(); // Usa data YYYY-MM-DD para facilitar filtro
+                            } else {
+                                payload.receivedBy = null;
+                                payload.receivedAt = null;
+                            }
+                            dbOp('update', 'trips', payload);
+                        }} sendBillingMessage={sendBillingMessage} del={del} setFormData={setFormData} setModal={setModal} openEditTrip={openEditTrip} user={user} notify={notify} />}
                         {view === 'achados' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                         {view === 'lostFound' && <Achados data={data} theme={theme} searchTerm={searchTerm} setSearchTerm={setSearchTerm} setModal={setModal} dbOp={dbOp} del={del} notify={notify} />}
                         {view === 'settings' && <Configuracoes user={user} theme={theme} restartTour={restartTour} setAiModal={setAiModal} geminiKey={geminiKey} setGeminiKey={setGeminiKey} saveApiKey={saveApiKey} ipToBlock={ipToBlock} setIpToBlock={setIpToBlock} blockIp={blockIp} data={data} del={del} ipHistory={ipHistory} ipLabels={ipLabels} saveIpLabel={saveIpLabel} changeTheme={changeTheme} themeKey={themeKey} dbOp={dbOp} pricePerPassenger={pricePerPassenger} notify={notify} requestConfirm={requestConfirm} setView={setView} />}

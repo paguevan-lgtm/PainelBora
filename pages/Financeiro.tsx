@@ -14,6 +14,48 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
         return num.toFixed(2).replace('.', ',');
     };
 
+    // --- Lógica do Caixa Diário ---
+    const today = getTodayDate();
+    const dailyTrips = (data.trips || []).filter((t:any) => t.paymentStatus === 'Pago' && t.receivedAt === today);
+
+    const calcTripValue = (t:any) => {
+        let value = 0;
+        let pCount = 0;
+        if (t.isExtra) { 
+            value = parseFloat(t.value) || 0; 
+        } else if (t.isMadrugada) { 
+            pCount = t.pCountSnapshot !== undefined ? parseInt(t.pCountSnapshot || 0) : parseInt(t.pCount || 0); 
+            const unitPrice = t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4; 
+            value = pCount * unitPrice; 
+        } else { 
+            if (t.pCountSnapshot !== undefined && t.pCountSnapshot !== null) {
+                pCount = parseInt(t.pCountSnapshot || 0);
+            } else if (t.passengersSnapshot) {
+                pCount = t.passengersSnapshot.reduce((acc:number, p:any) => acc + parseInt(p.passengerCount || 1), 0);
+            } else {
+                pCount = data.passengers.filter((p:any) => (t.passengerIds||[]).includes(p.id)).reduce((a:number,b:any) => a + parseInt(b.passengerCount||1), 0);
+            }
+            const unitPrice = t.ticketPrice !== undefined ? Number(t.ticketPrice) : 4; 
+            value = pCount * unitPrice; 
+            if (pCount === 0 && t.value) value = parseFloat(t.value); 
+        }
+        return value;
+    };
+
+    const operatorTotals: Record<string, number> = {};
+    let grandTotal = 0;
+
+    dailyTrips.forEach((t:any) => {
+        const val = calcTripValue(t);
+        const receiver = t.receivedBy || 'Desconhecido';
+        if (!operatorTotals[receiver]) operatorTotals[receiver] = 0;
+        operatorTotals[receiver] += val;
+        grandTotal += val;
+    });
+
+    const myTotal = operatorTotals[user.username] || 0;
+    // -----------------------------
+
     return (
         <div className="space-y-6">
             {/* Cabeçalho com Navegação de Mês */}
@@ -27,7 +69,41 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                 </div>
             </div>
 
-            {/* Resumo Topo */}
+            {/* CAIXA DIÁRIO (NOVO) */}
+            <div className="stagger-in d-2">
+                <div className={`${theme.card} p-6 rounded-xl border ${theme.border} bg-blue-500/10 border-blue-500/20 relative overflow-hidden`}>
+                    <div className="flex justify-between items-start z-10 relative">
+                        <div>
+                            <div className="text-xs font-bold text-blue-400 uppercase tracking-widest mb-1">
+                                Caixa Diário ({canSeeRevenue ? 'Geral' : 'Meu'})
+                            </div>
+                            <div className="text-4xl font-bold text-white">
+                                R$ {formatCurrency(canSeeRevenue ? grandTotal : myTotal)}
+                            </div>
+                            <div className="text-sm opacity-50 mt-1">
+                                {canSeeRevenue ? dailyTrips.length : dailyTrips.filter((t:any) => t.receivedBy === user.username).length} pagamentos hoje
+                            </div>
+                        </div>
+                        <div className="p-3 bg-blue-500/20 rounded-full text-blue-400">
+                            <Icons.Dollar size={24} />
+                        </div>
+                    </div>
+                    
+                    {/* Detalhamento para Admin */}
+                    {canSeeRevenue && Object.keys(operatorTotals).length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-2">
+                            {Object.entries(operatorTotals).map(([op, val]) => (
+                                <div key={op} className="flex justify-between items-center text-sm">
+                                    <span className="opacity-60">{op}</span>
+                                    <span className="font-bold">R$ {formatCurrency(val)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Resumo Topo (Mensal) */}
             <div className={`grid ${canSeeRevenue ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
                 <div className={`${theme.card} p-4 rounded-xl border ${theme.border} bg-red-500/10 border-red-500/20 stagger-in d-2`}>
                     <div className="text-xs font-bold text-red-400 uppercase tracking-widest mb-1">A Receber (Pendente)</div>
@@ -54,7 +130,8 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                             <h3 className="flex items-center gap-3 text-sm font-bold opacity-60 uppercase tracking-widest mb-3 pl-1">
                                 <span>{displayDate}</span>
                                 <div className="h-[1px] bg-white/10 flex-1"></div>
-                                <span className="text-white/40">Total: R$ {formatCurrency(group.totalValue)}</span>
+                                {/* Só mostra o total do dia se for admin, pois contém valores pagos */}
+                                {canSeeRevenue && <span className="text-white/40">Total: R$ {formatCurrency(group.totalValue)}</span>}
                             </h3>
                             
                             <div className="space-y-3">
@@ -102,6 +179,12 @@ export default function Financeiro({ data, theme, billingData, billingDate, prev
                                                             <span className="font-mono">#{trip.id}</span>
                                                         </div>
                                                     </>
+                                                )}
+                                                {/* Mostra quem recebeu o pagamento se estiver pago */}
+                                                {trip.isPaid && trip.receivedBy && (
+                                                    <div className="text-[10px] opacity-40 mt-1">
+                                                        Recebido por: {trip.receivedBy}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
